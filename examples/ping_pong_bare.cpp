@@ -39,8 +39,6 @@ struct ponger_t : actor_base_t
   handler_t<decltype(&ponger_t::pong_handler)> pongHandler;
 };
 
-// File-scope globals — ordered initialization within one TU, no __cxa_guard needed.
-
 
 int main()
 {
