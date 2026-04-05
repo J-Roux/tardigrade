@@ -1,0 +1,15 @@
+set(CMAKE_SYSTEM_NAME      Generic)
+set(CMAKE_SYSTEM_PROCESSOR avr)
+
+# Avoid link-stage try_compile — AVR has no hosted entry point
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+
+set(CMAKE_C_COMPILER   avr-gcc)
+set(CMAKE_CXX_COMPILER avr-g++)
+set(CMAKE_ASM_COMPILER avr-gcc)
+
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+
+set(AVR_MCU "atmega328p" CACHE STRING "Target AVR MCU (e.g. atmega328p, atmega2560)")
