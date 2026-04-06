@@ -9,17 +9,17 @@
 namespace tartigrada
 {
 
-struct superviser_t; // for friend
+struct supervisor_t; // for friend
 
 struct actor_base_t : node<actor_base_t>
 {
-  friend struct superviser_t;
+  friend struct supervisor_t;
 
-  explicit actor_base_t(enviroment_t& enviroment)
+  explicit actor_base_t(environment_t& environment)
       : message_{},
-        enviroment_{ enviroment },
+        environment_{ environment },
         state_{ State::INITIALIZING },
-        stateHandler_{ this, &actor_base_t::change_state }
+        stateHandler_{ this, &actor_base_t::on_state }
   {
     subscribe(&stateHandler_);
   }
@@ -27,12 +27,12 @@ struct actor_base_t : node<actor_base_t>
   [[nodiscard]] constexpr State get_state() const noexcept { return state_; }
 
 protected:
-  enviroment_t& enviroment_;
+  environment_t& environment_;
 
   virtual void init()     noexcept {}
   virtual void shutdown() noexcept {}
 
-  virtual void change_state(state_message_t* s) noexcept
+  virtual void on_state(state_message_t* s) noexcept
   {
     switch (s->get_state())
     {
@@ -56,8 +56,8 @@ protected:
     }
   }
 
-  void send(message_base_t* msg) noexcept  { enviroment_.post(msg); }
-  void subscribe(handler_ptr* h) noexcept  { enviroment_.subscribe(h); }
+  void send(message_base_t* msg) noexcept  { environment_.post(msg); }
+  void subscribe(handler_ptr* h) noexcept  { environment_.subscribe(h); }
 
   void retire() noexcept
   {
@@ -71,7 +71,7 @@ private:
   State           state_;
   actor_base_t*   supervisor_          = nullptr;
   bool            supervised_shutdown_ = false;
-  handler_t<decltype(&actor_base_t::change_state)> stateHandler_;
+  handler_t<decltype(&actor_base_t::on_state)> stateHandler_;
 };
 
 } // namespace tartigrada

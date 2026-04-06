@@ -8,23 +8,25 @@ namespace tartigrada
 
 enum class ShutdownPolicy { REBOOT, CASCADE };
 
-struct superviser_t : public actor_base_t
+struct supervisor_t : public actor_base_t
 {
-  superviser_t(enviroment_t& enviroment, ShutdownPolicy policy = ShutdownPolicy::CASCADE)
-      : actor_base_t{ enviroment }, policy_{ policy }
-  {}
+  supervisor_t(environment_t& environment, ShutdownPolicy policy = ShutdownPolicy::CASCADE)
+      : actor_base_t{ environment }, policy_{ policy }
+  {
+    environment_.set_supervisor(this);
+  }
 
-  void registrate(actor_base_t* actor) noexcept
+  void add(actor_base_t* actor) noexcept
   {
     childs_.push_front(actor);
     actor->supervisor_ = this;
   }
 
-  [[nodiscard]] bool do_step()  noexcept { return enviroment_.dispatch(); }
-  void              do_process() noexcept { while (do_step()); }
+  [[nodiscard]] bool step()  noexcept { return environment_.dispatch(); }
+  void              run() noexcept { while (step()); }
 
 protected:
-  void change_state(state_message_t* s) noexcept override
+  void on_state(state_message_t* s) noexcept override
   {
     switch (s->get_state())
     {

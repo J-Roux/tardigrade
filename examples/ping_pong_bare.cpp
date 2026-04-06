@@ -2,15 +2,15 @@
 
 using namespace tartigrada;
 
-struct ping_t : message_t<ping_t> {};
-struct pong_t : message_t<pong_t> {};
+struct ping_t : public message_t<ping_t> {};
+struct pong_t : public message_t<pong_t> {};
 
 struct pinger_t : actor_base_t
 {
   pong_t pong;
 
 
-  pinger_t(enviroment_t& env)
+  pinger_t(environment_t& env)
       : actor_base_t{ env },
         pingHandler{ this, &pinger_t::ping_handler }
   {
@@ -28,7 +28,7 @@ struct ponger_t : actor_base_t
   ping_t ping;
 
 
-  ponger_t(enviroment_t& env)
+  ponger_t(environment_t& env)
       : actor_base_t{ env },
         pongHandler{ this, &ponger_t::pong_handler }
   {
@@ -42,19 +42,18 @@ struct ponger_t : actor_base_t
 
 int main()
 {
-  enviroment_t    enviroment;
+  environment_t    environment;
   state_message_t boot_msg;
-  superviser_t    s{ enviroment };
-  pinger_t        ping{ enviroment };
-  ponger_t        pong{ enviroment };
+  supervisor_t    s{ environment };
+  pinger_t        ping{ environment };
+  ponger_t        pong{ environment };
 
-  enviroment.set_top(&s);
   boot_msg.set_state(State::INITIALIZING);
   boot_msg.set_address(&s);
-  enviroment.post(&boot_msg);
+  environment.post(&boot_msg);
 
-  s.registrate(&ping);
-  s.registrate(&pong);
+  s.add(&ping);
+  s.add(&pong);
 
-  s.do_process();   // on Arduino: call s.do_step() from loop() instead
+  s.run();   // on Arduino: call s.step() from loop() instead
 }

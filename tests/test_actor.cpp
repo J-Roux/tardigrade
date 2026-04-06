@@ -4,6 +4,8 @@
 
 using namespace tartigrada;
 
+namespace {
+
 // --- helpers ----------------------------------------------------------------
 
 struct ping_t : message_t<ping_t> {};
@@ -17,7 +19,7 @@ struct recorder_t : actor_base_t
 
    
 
-    explicit recorder_t(enviroment_t& env)
+    explicit recorder_t(environment_t& env)
         : actor_base_t{ env },
           pingHandler{ this, &recorder_t::on_ping }
     {
@@ -36,19 +38,18 @@ struct recorder_t : actor_base_t
 // INITIALIZING boot message, then runs until the queue drains.
 struct fixture
 {
-    enviroment_t     env;
-    superviser_t     super{ env };
+    environment_t     env;
+    supervisor_t     super{ env };
     state_message_t  boot{};
 
     fixture()
     {
-        env.set_top(&super);
         boot.set_state(State::INITIALIZING);
         boot.set_address(&super);
         env.post(&boot);
     }
 
-    void run() { super.do_process(); }
+    void run() { super.run(); }
 
     void shutdown()
     {
@@ -66,7 +67,7 @@ struct retiring_t : actor_base_t
     int shutdown_count = 0;
     bool retired       = false;
 
-    explicit retiring_t(enviroment_t& env) : actor_base_t{ env } {}
+    explicit retiring_t(environment_t& env) : actor_base_t{ env } {}
 
     void init() noexcept override
     {
@@ -79,20 +80,19 @@ struct retiring_t : actor_base_t
 // fixture variant with a configurable supervisor policy
 struct policy_fixture
 {
-    enviroment_t    env;
-    superviser_t    super;
+    environment_t    env;
+    supervisor_t    super;
     state_message_t boot{};
 
     explicit policy_fixture(ShutdownPolicy p)
         : super{ env, p }
     {
-        env.set_top(&super);
         boot.set_state(State::INITIALIZING);
         boot.set_address(&super);
         env.post(&boot);
     }
 
-    void run() { super.do_process(); }
+    void run() { super.run(); }
 };
 
 // --- tests ------------------------------------------------------------------
@@ -101,7 +101,7 @@ TEST_CASE("actor init() is called on INITIALIZING", "[actor]")
 {
     fixture f;
     recorder_t rec{ f.env };
-    f.super.registrate(&rec);
+    f.super.add(&rec);
 
     f.run();
 
@@ -112,7 +112,7 @@ TEST_CASE("actor shutdown() is called on SHUT_DOWNING", "[actor]")
 {
     fixture f;
     recorder_t rec{ f.env };
-    f.super.registrate(&rec);
+    f.super.add(&rec);
 
     f.run();
     f.shutdown();
@@ -124,7 +124,7 @@ TEST_CASE("actor state transitions correctly", "[actor]")
 {
     fixture f;
     recorder_t rec{ f.env };
-    f.super.registrate(&rec);
+    f.super.add(&rec);
 
     REQUIRE(rec.get_state() == State::INITIALIZING);
     f.run();
@@ -137,7 +137,7 @@ TEST_CASE("handler receives matching message", "[actor]")
 {
     fixture f;
     recorder_t rec{ f.env };
-    f.super.registrate(&rec);
+    f.super.add(&rec);
     f.run();
 
     ping_t ping;
@@ -151,7 +151,7 @@ TEST_CASE("handler ignores non-matching message", "[actor]")
 {
     fixture f;
     recorder_t rec{ f.env };
-    f.super.registrate(&rec);
+    f.super.add(&rec);
     f.run();
 
     pong_t pong;  // recorder has no pong handler
@@ -165,8 +165,8 @@ TEST_CASE("addressed message only reaches its target actor", "[actor]")
 {
     fixture f;
     recorder_t a{ f.env }, b{ f.env };
-    f.super.registrate(&a);
-    f.super.registrate(&b);
+    f.super.add(&a);
+    f.super.add(&b);
     f.run();
 
     ping_t ping;
@@ -184,9 +184,9 @@ TEST_CASE("broadcast reaches all actors", "[broadcast]")
 {
     fixture f;
     recorder_t a{ f.env }, b{ f.env }, c{ f.env };
-    f.super.registrate(&a);
-    f.super.registrate(&b);
-    f.super.registrate(&c);
+    f.super.add(&a);
+    f.super.add(&b);
+    f.super.add(&c);
     f.run();
 
     ping_t ping;
@@ -202,12 +202,12 @@ TEST_CASE("broadcast reaches all actors", "[broadcast]")
 TEST_CASE("broadcast reaches actors across supervisor hierarchy", "[broadcast]")
 {
     fixture f;
-    superviser_t child{ f.env };
+    supervisor_t child{ f.env };
     recorder_t a{ f.env }, b{ f.env };
 
-    f.super.registrate(&child);
-    child.registrate(&a);
-    f.super.registrate(&b);
+    f.super.add(&child);
+    child.add(&a);
+    f.super.add(&b);
     f.run();
 
     ping_t ping;
@@ -222,8 +222,8 @@ TEST_CASE("broadcast does not interfere with addressed message", "[broadcast]")
 {
     fixture f;
     recorder_t a{ f.env }, b{ f.env };
-    f.super.registrate(&a);
-    f.super.registrate(&b);
+    f.super.add(&a);
+    f.super.add(&b);
     f.run();
 
     ping_t ping_all;                   // broadcast
@@ -249,8 +249,8 @@ TEST_CASE("supervisor initialises all children", "[supervisor]")
 {
     fixture f;
     recorder_t a{ f.env }, b{ f.env };
-    f.super.registrate(&a);
-    f.super.registrate(&b);
+    f.super.add(&a);
+    f.super.add(&b);
 
     f.run();
 
@@ -262,8 +262,8 @@ TEST_CASE("supervisor shuts down all children", "[supervisor]")
 {
     fixture f;
     recorder_t a{ f.env }, b{ f.env };
-    f.super.registrate(&a);
-    f.super.registrate(&b);
+    f.super.add(&a);
+    f.super.add(&b);
 
     f.run();
     f.shutdown();
@@ -277,12 +277,12 @@ TEST_CASE("supervisor shuts down all children", "[supervisor]")
 TEST_CASE("child supervisor transitively initialises grandchildren", "[supervisor][hierarchy]")
 {
     fixture f;
-    superviser_t child{ f.env };
+    supervisor_t child{ f.env };
     recorder_t a{ f.env }, b{ f.env };
 
-    f.super.registrate(&child);
-    child.registrate(&a);
-    child.registrate(&b);
+    f.super.add(&child);
+    child.add(&a);
+    child.add(&b);
 
     f.run();
 
@@ -293,11 +293,11 @@ TEST_CASE("child supervisor transitively initialises grandchildren", "[superviso
 TEST_CASE("child supervisor reaches OPERATIONAL when parent initialises", "[supervisor][hierarchy]")
 {
     fixture f;
-    superviser_t child{ f.env };
+    supervisor_t child{ f.env };
     recorder_t a{ f.env };
 
-    f.super.registrate(&child);
-    child.registrate(&a);
+    f.super.add(&child);
+    child.add(&a);
 
     f.run();
 
@@ -308,12 +308,12 @@ TEST_CASE("child supervisor reaches OPERATIONAL when parent initialises", "[supe
 TEST_CASE("child supervisor transitively shuts down grandchildren", "[supervisor][hierarchy]")
 {
     fixture f;
-    superviser_t child{ f.env };
+    supervisor_t child{ f.env };
     recorder_t a{ f.env }, b{ f.env };
 
-    f.super.registrate(&child);
-    child.registrate(&a);
-    child.registrate(&b);
+    f.super.add(&child);
+    child.add(&a);
+    child.add(&b);
 
     f.run();
     f.shutdown();
@@ -326,11 +326,11 @@ TEST_CASE("child supervisor transitively shuts down grandchildren", "[supervisor
 TEST_CASE("broadcast message reaches grandchildren", "[supervisor][hierarchy]")
 {
     fixture f;
-    superviser_t child{ f.env };
+    supervisor_t child{ f.env };
     recorder_t a{ f.env };
 
-    f.super.registrate(&child);
-    child.registrate(&a);
+    f.super.add(&child);
+    child.add(&a);
     f.run();
 
     ping_t ping;  // no address — broadcast
@@ -343,13 +343,13 @@ TEST_CASE("broadcast message reaches grandchildren", "[supervisor][hierarchy]")
 TEST_CASE("3-level hierarchy initialises all actors", "[supervisor][hierarchy]")
 {
     fixture f;                          // root
-    superviser_t mid{ f.env };
-    superviser_t leaf_sup{ f.env };
+    supervisor_t mid{ f.env };
+    supervisor_t leaf_sup{ f.env };
     recorder_t a{ f.env };
 
-    f.super.registrate(&mid);
-    mid.registrate(&leaf_sup);
-    leaf_sup.registrate(&a);
+    f.super.add(&mid);
+    mid.add(&leaf_sup);
+    leaf_sup.add(&a);
 
     f.run();
 
@@ -361,13 +361,13 @@ TEST_CASE("3-level hierarchy initialises all actors", "[supervisor][hierarchy]")
 TEST_CASE("siblings under different supervisors initialise independently", "[supervisor][hierarchy]")
 {
     fixture f;
-    superviser_t left{ f.env }, right{ f.env };
+    supervisor_t left{ f.env }, right{ f.env };
     recorder_t a{ f.env }, b{ f.env };
 
-    f.super.registrate(&left);
-    f.super.registrate(&right);
-    left.registrate(&a);
-    right.registrate(&b);
+    f.super.add(&left);
+    f.super.add(&right);
+    left.add(&a);
+    right.add(&b);
 
     f.run();
 
@@ -383,7 +383,7 @@ TEST_CASE("REBOOT policy re-initialises a child that retires", "[policy]")
 {
     policy_fixture f{ ShutdownPolicy::REBOOT };
     retiring_t actor{ f.env };
-    f.super.registrate(&actor);
+    f.super.add(&actor);
 
     f.run();
 
@@ -398,8 +398,8 @@ TEST_CASE("REBOOT policy leaves other children untouched", "[policy]")
     policy_fixture f{ ShutdownPolicy::REBOOT };
     retiring_t  quitter{ f.env };
     recorder_t  stable{ f.env };
-    f.super.registrate(&quitter);
-    f.super.registrate(&stable);
+    f.super.add(&quitter);
+    f.super.add(&stable);
 
     f.run();
 
@@ -413,7 +413,7 @@ TEST_CASE("CASCADE policy shuts supervisor down when a child retires", "[policy]
 {
     policy_fixture f{ ShutdownPolicy::CASCADE };
     retiring_t actor{ f.env };
-    f.super.registrate(&actor);
+    f.super.add(&actor);
 
     f.run();
 
@@ -426,8 +426,8 @@ TEST_CASE("CASCADE policy shuts down sibling actors", "[policy]")
     policy_fixture f{ ShutdownPolicy::CASCADE };
     retiring_t  quitter{ f.env };
     recorder_t  sibling{ f.env };
-    f.super.registrate(&quitter);
-    f.super.registrate(&sibling);
+    f.super.add(&quitter);
+    f.super.add(&sibling);
 
     f.run();
 
@@ -438,13 +438,13 @@ TEST_CASE("CASCADE policy shuts down sibling actors", "[policy]")
 TEST_CASE("CASCADE propagates through hierarchy", "[policy]")
 {
     policy_fixture f{ ShutdownPolicy::CASCADE };
-    superviser_t child{ f.env, ShutdownPolicy::CASCADE };
+    supervisor_t child{ f.env, ShutdownPolicy::CASCADE };
     retiring_t   quitter{ f.env };
     recorder_t   sibling{ f.env };
 
-    f.super.registrate(&child);
-    child.registrate(&quitter);
-    child.registrate(&sibling);
+    f.super.add(&child);
+    child.add(&quitter);
+    child.add(&sibling);
 
     f.run();
 
@@ -452,3 +452,5 @@ TEST_CASE("CASCADE propagates through hierarchy", "[policy]")
     REQUIRE(child.get_state() == State::UNINITIALIZED);
     REQUIRE(f.super.get_state() == State::UNINITIALIZED);
 }
+
+} // namespace

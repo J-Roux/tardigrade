@@ -13,8 +13,8 @@ struct pinger_t : public actor_base_t
 {
   pong_t pong;
 
-  pinger_t(enviroment_t& enviroment)
-      : actor_base_t{ enviroment },
+  pinger_t(environment_t& environment)
+      : actor_base_t{ environment },
         pong{},
         pingHandler{ this, &pinger_t::ping_handler }
   {
@@ -41,8 +41,8 @@ struct ponger_t : public actor_base_t
 {
   ping_t ping;
 
-  ponger_t(enviroment_t& enviroment)
-      : actor_base_t{ enviroment },
+  ponger_t(environment_t& environment)
+      : actor_base_t{ environment },
         ping{},
         pongHandler{ this, &ponger_t::pong_handler }
   {
@@ -66,20 +66,19 @@ struct ponger_t : public actor_base_t
 
 int main()
 {
-  enviroment_t enviroment;
+  environment_t environment;
 
-  superviser_t s{ enviroment };
-  enviroment.set_top(&s);
+  supervisor_t s{ environment };
 
   state_message_t message{};
   message.set_state(State::INITIALIZING);
   message.set_address(&s);
-  enviroment.post(&message);
+  environment.post(&message);
 
-  pinger_t ping{ enviroment };
-  ponger_t pong{ enviroment };
-  s.registrate(&ping);
-  s.registrate(&pong);
+  pinger_t ping{ environment };
+  ponger_t pong{ environment };
+  s.add(&ping);
+  s.add(&pong);
 
-  s.do_process();
+  s.run();
 }
