@@ -1,11 +1,26 @@
 #pragma once
 
-// <cstddef> is unavailable on bare-metal AVR (no libstdc++ headers).
-// <stddef.h> is always available via avr-libc / freestanding GCC.
-#ifdef __AVR__
-  #include <stddef.h>
-  namespace tartigrada { using size_t = ::size_t; }
-#else
-  #include <cstddef>
-  namespace tartigrada { using size_t = std::size_t; }
-#endif
+
+ #include <stddef.h>
+namespace tartigrada { using size_t = ::size_t; }
+
+
+namespace tartigrada
+{
+
+// Default no-op critical section used by dispatch()/step()/run().
+// Replace with your platform type:
+//
+//   struct avr_cs_t {
+//       unsigned char sreg_;
+//       avr_cs_t()  noexcept : sreg_{SREG} { cli(); }
+//       ~avr_cs_t() noexcept { SREG = sreg_; }
+//   };
+//   supervisor.run<avr_cs_t>();
+struct empty_critical_section_t
+{
+    empty_critical_section_t()  noexcept = default;
+    ~empty_critical_section_t() noexcept = default;
+};
+
+} // namespace tartigrada

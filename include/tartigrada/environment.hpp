@@ -1,12 +1,14 @@
 #pragma once
 
 #include "handler.hpp"
+#include "platform.hpp"
 #include "queue.hpp"
 
 namespace tartigrada
 {
 
 struct actor_base_t;
+
 
 class environment_t
 {
@@ -23,6 +25,11 @@ public:
     handles.push_front(h);
   }
 
+  // Dispatch one ready message from the queue.
+  // CS is a RAII critical-section type that disables interrupts around
+  // queue accesses so ISRs may safely call post() concurrently.
+  // The default (empty_critical_section_t) is a no-op for host builds.
+  template<class CS = empty_critical_section_t>
   [[nodiscard]] bool dispatch() noexcept
   {
     // Scan at most the current queue length so not-ready messages
@@ -30,11 +37,12 @@ public:
     const auto pending = messageQueue.length();
     for (tartigrada::size_t i = 0; i < pending; ++i)
     {
-      auto* msg = messageQueue.front();
-      messageQueue.pop_front();
+      message_base_t* msg;
+      { CS cs; msg = messageQueue.front(); messageQueue.pop_front(); }
+
       if (!msg->is_ready())
       {
-        messageQueue.push_front(msg); // move to back, try next
+        CS cs; messageQueue.push_front(msg); // move to back, try next
         continue;
       }
       const auto  id   = msg->get_id();

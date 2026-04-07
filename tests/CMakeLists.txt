@@ -5,6 +5,8 @@ add_executable(tartigrada_tests
     test_queue.cpp
     test_actor.cpp
     test_timer.cpp
+    test_mutex.cpp
+    test_semaphore.cpp
 )
 
 target_link_libraries(tartigrada_tests PRIVATE

@@ -22,8 +22,11 @@ struct supervisor_t : public actor_base_t
     actor->supervisor_ = this;
   }
 
-  [[nodiscard]] bool step()  noexcept { return environment_.dispatch(); }
-  void              run() noexcept { while (step()); }
+  template<class CS = empty_critical_section_t>
+  [[nodiscard]] bool step() noexcept { return environment_.dispatch<CS>(); }
+
+  template<class CS = empty_critical_section_t>
+  void run() noexcept { while (step<CS>()); }
 
 protected:
   void on_state(state_message_t* s) noexcept override
