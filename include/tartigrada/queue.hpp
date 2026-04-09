@@ -8,7 +8,7 @@ namespace tartigrada
 template<class Node>
 class queue
 {
-  Node* tail = nullptr;
+  Node* head = nullptr;
   tartigrada::size_t size = 0;
 
 public:
@@ -17,9 +17,9 @@ public:
     return size == 0;
   }
 
-  void push_front(Node* n) noexcept
+  void push_back(Node* n) noexcept
   {
-    auto** temp = &tail;
+    auto** temp = &head;
     for (tartigrada::size_t i = 0; i < size; i++)
     {
       temp = &((*temp)->ptr);
@@ -30,7 +30,7 @@ public:
 
   void pop_front() noexcept
   {
-    tail = tail->ptr;
+    head = head->ptr;
     size--;
   }
 
@@ -41,7 +41,7 @@ public:
 
   [[nodiscard]] constexpr Node* front() noexcept
   {
-    return tail;
+    return head;
   }
 
   struct iterator
@@ -53,7 +53,7 @@ public:
     [[nodiscard]] constexpr bool  operator!=(const iterator& o) const noexcept { return current != o.current; }
   };
 
-  constexpr iterator begin() noexcept { return { tail }; }
+  constexpr iterator begin() noexcept { return { head }; }
   constexpr iterator end()   noexcept { return { nullptr }; }
 };
 

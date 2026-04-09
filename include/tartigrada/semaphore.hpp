@@ -29,6 +29,10 @@ public:
     }
 
     constexpr void release() noexcept { ++count_; }
+
+    // Resets the count to the given value (default 0). Use instead of a drain
+    // loop in contexts where the new count is known (e.g. embedded shutdown).
+    constexpr void reset(tartigrada::size_t val = 0) noexcept { count_ = val; }
 };
 
 // Message base that defers dispatch until the bound semaphore has a

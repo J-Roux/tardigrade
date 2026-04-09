@@ -18,7 +18,7 @@ struct supervisor_t : public actor_base_t
 
   void add(actor_base_t* actor) noexcept
   {
-    childs_.push_front(actor);
+    childs_.push_back(actor);
     actor->supervisor_ = this;
   }
 

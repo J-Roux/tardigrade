@@ -44,7 +44,6 @@ public:
   state_message_t() = default;
   state_message_t(State state) : state_{state} {}
   
-  //bool is_ready() noexcept override { return true;}
 private:
   State state_ = State::UNINITIALIZED;
 };

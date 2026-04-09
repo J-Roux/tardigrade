@@ -12,6 +12,7 @@ if(NOT CMAKE_CROSSCOMPILING)
   find_package(Threads REQUIRED)
   enable_testing()
   add_subdirectory(tests)
+  add_subdirectory(tools)
 endif()
 
 add_subdirectory(examples)

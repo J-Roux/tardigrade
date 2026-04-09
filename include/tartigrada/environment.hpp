@@ -17,12 +17,12 @@ public:
 
   void post(message_base_t* msg) noexcept
   {
-    messageQueue.push_front(msg);
+    messageQueue.push_back(msg);
   }
 
   void subscribe(handler_ptr* h) noexcept
   {
-    handles.push_front(h);
+    handles.push_back(h);
   }
 
   // Dispatch one ready message from the queue.
@@ -42,7 +42,7 @@ public:
 
       if (!msg->is_ready())
       {
-        CS cs; messageQueue.push_front(msg); // move to back, try next
+        CS cs; messageQueue.push_back(msg); // move to back, try next
         continue;
       }
       const auto  id   = msg->get_id();
