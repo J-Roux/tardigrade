@@ -183,7 +183,7 @@ ctest --test-dir build/Release
 The `with_simavr=True` option builds and installs simavr from source automatically if not already present.
 
 ```bash
-conan build . --build=missing -s build_type=Release -o with_simavr=True
+conan build . --build=missing -s build_type=Release -o "&:with_simavr=True"
 ```
 
 ### AVR firmware
@@ -201,7 +201,7 @@ Build the host tree, then the AVR firmware, then run the simulation:
 
 ```bash
 # 1. Build host (sim_runner + simavr)
-conan build . --build=missing -s build_type=Release -o with_simavr=True
+conan build . --build=missing -s build_type=Release -o "&:with_simavr=True"
 
 # 2. Build AVR firmware
 cmake -B build-avr -DCMAKE_TOOLCHAIN_FILE=cmake/avr-toolchain.cmake \
