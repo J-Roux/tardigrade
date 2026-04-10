@@ -92,7 +92,7 @@ jobs:
 
     steps:
       - name: Install dependencies
-        run: pacman -Syu --noconfirm git cmake make avr-gcc avr-libc python python-pip libelf
+        run: pacman -Syu --noconfirm git cmake make gcc avr-gcc avr-libc python python-pip libelf
 
       - uses: actions/checkout@v4
 
