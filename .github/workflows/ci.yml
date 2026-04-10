@@ -13,14 +13,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest,  compiler: gcc,   cc: gcc,   cxx: g++,     build_type: Release }
-          - { os: ubuntu-latest,  compiler: gcc,   cc: gcc,   cxx: g++,     build_type: Debug   }
-          - { os: ubuntu-latest,  compiler: clang, cc: clang, cxx: clang++, build_type: Release }
-          - { os: ubuntu-latest,  compiler: clang, cc: clang, cxx: clang++, build_type: Debug   }
-          - { os: macos-latest,   compiler: clang, cc: clang, cxx: clang++, build_type: Release }
-          - { os: macos-latest,   compiler: clang, cc: clang, cxx: clang++, build_type: Debug   }
-          - { os: windows-latest, compiler: msvc,  build_type: Release }
-          - { os: windows-latest, compiler: msvc,  build_type: Debug   }
+          - { os: ubuntu-latest,  compiler: gcc,   cc: gcc,   cxx: g++,     build_type: Release, preset: conan-release, build_dir: build/Release, ctest_config: ""              }
+          - { os: ubuntu-latest,  compiler: gcc,   cc: gcc,   cxx: g++,     build_type: Debug,   preset: conan-debug,   build_dir: build/Debug,   ctest_config: ""              }
+          - { os: ubuntu-latest,  compiler: clang, cc: clang, cxx: clang++, build_type: Release, preset: conan-release, build_dir: build/Release, ctest_config: ""              }
+          - { os: ubuntu-latest,  compiler: clang, cc: clang, cxx: clang++, build_type: Debug,   preset: conan-debug,   build_dir: build/Debug,   ctest_config: ""              }
+          - { os: macos-latest,   compiler: clang, cc: clang, cxx: clang++, build_type: Release, preset: conan-release, build_dir: build/Release, ctest_config: ""              }
+          - { os: macos-latest,   compiler: clang, cc: clang, cxx: clang++, build_type: Debug,   preset: conan-debug,   build_dir: build/Debug,   ctest_config: ""              }
+          - { os: windows-latest, compiler: msvc,  build_type: Release,     preset: conan-default, build_dir: build,   ctest_config: "-C Release" }
+          - { os: windows-latest, compiler: msvc,  build_type: Debug,       preset: conan-default, build_dir: build,   ctest_config: "-C Debug"   }
 
     steps:
       - uses: actions/checkout@v4
@@ -54,9 +54,9 @@ jobs:
 
       - name: Build and test
         run: |
-          cmake --preset conan-${{ matrix.build_type == 'Release' && 'release' || 'debug' }}
-          cmake --build build/${{ matrix.build_type }}
-          ctest --test-dir build/${{ matrix.build_type }} --output-on-failure
+          cmake --preset ${{ matrix.preset }}
+          cmake --build ${{ matrix.build_dir }} --config ${{ matrix.build_type }}
+          ctest --test-dir ${{ matrix.build_dir }} ${{ matrix.ctest_config }} --output-on-failure
         env:
           CC:  ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}

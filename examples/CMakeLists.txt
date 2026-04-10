@@ -17,9 +17,6 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "avr")
       -fno-rtti
       -ffunction-sections
       -fdata-sections
-      # Allow firmware to include <avr/avr_mcu_section.h> from simavr,
-      # which embeds MCU name + frequency in the ELF for sim_runner.
-      -I/usr/include/simavr
   )
   set(_avr_link_opts
       -mmcu=${AVR_MCU}
@@ -46,7 +43,14 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "avr")
     )
   endfunction()
 
+  if(TARTIGRADA_WITH_SIMAVR)
+    target_compile_options(ping_pong_bare PRIVATE -I/usr/include/simavr)
+  endif()
+
   add_avr_firmware(arduino_watchdog arduino_watchdog.cpp)
+  if(TARTIGRADA_WITH_SIMAVR)
+    target_compile_options(arduino_watchdog PRIVATE -I/usr/include/simavr)
+  endif()
 endif()
 
 # sim_<name> — host targets that run an AVR ELF through sim_runner.

@@ -1,6 +1,6 @@
 # tartigrada
 
-A lightweight, header-only actor model framework for C++17.  
+A lightweight, header-only actor model framework for C++17 inspired by [cpp-rotor](https://github.com/basiliscos/cpp-rotor)
 Designed for bare-metal embedded systems (AVR, ARM Cortex-M) and hosted environments alike.  
 Zero heap allocation. Zero exceptions. Zero RTTI.
 
@@ -224,3 +224,4 @@ cmake --build build/Release --target sim_arduino_watchdog
 ## License
 
 MIT
+

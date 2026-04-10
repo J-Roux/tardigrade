@@ -21,17 +21,17 @@ struct recorder_t : actor_base_t
 
     explicit recorder_t(environment_t& env)
         : actor_base_t{ env },
-          pingHandler{ this, &recorder_t::on_ping }
+          pingHandler{on<&recorder_t::on_ping>() }
     {
-        subscribe(&pingHandler);
+        subscribe(pingHandler);
     }
 
     void init()     noexcept override { ++init_count; }
     void shutdown() noexcept override { ++shutdown_count; }
 
     void on_ping(ping_t*) noexcept { ++ping_count; }
-    
-    handler_t<decltype(&recorder_t::on_ping)> pingHandler;
+
+    handler_pack_t<1> pingHandler;
 };
 
 // Builds a minimal environment with a supervisor and delivers the

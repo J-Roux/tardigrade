@@ -16,7 +16,7 @@ struct pinger_t : public actor_base_t
   pinger_t(environment_t& environment)
       : actor_base_t{ environment },
         pong{},
-        pingHandler{ this, &pinger_t::ping_handler }
+        pingHandler{on<&pinger_t::ping_handler>() }
   {
     subscribe(&pingHandler);
   }
@@ -34,7 +34,7 @@ struct pinger_t : public actor_base_t
     std::printf("pong\n");
   }
 
-  handler_t<decltype(&pinger_t::ping_handler)> pingHandler;
+  handler_t pingHandler;
 };
 
 struct ponger_t : public actor_base_t
@@ -44,7 +44,7 @@ struct ponger_t : public actor_base_t
   ponger_t(environment_t& environment)
       : actor_base_t{ environment },
         ping{},
-        pongHandler{ this, &ponger_t::pong_handler }
+        pongHandler{on<&ponger_t::pong_handler>() }
   {
     subscribe(&pongHandler);
   }
@@ -61,7 +61,7 @@ struct ponger_t : public actor_base_t
     std::printf("ping\n");
   }
 
-  handler_t<decltype(&ponger_t::pong_handler)> pongHandler;
+  handler_t pongHandler;
 };
 
 int main()

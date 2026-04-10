@@ -32,12 +32,10 @@ struct worker_t : actor_base_t
         : actor_base_t{ env },
           mutex{ mtx },
           shared_counter{ counter },
-          accessHandler { this, &worker_t::on_access  },
-          releaseHandler{ this, &worker_t::on_release }
+          handlers{ pack<&worker_t::on_access, &worker_t::on_release>() }
     {
         access_msg.bind(mutex);
-        subscribe(&accessHandler);
-        subscribe(&releaseHandler);
+        subscribe(handlers);
     }
 
     void init() noexcept override
@@ -57,8 +55,7 @@ struct worker_t : actor_base_t
 
     void on_release(release_t*) noexcept { mutex.unlock(); }
 
-    handler_t<decltype(&worker_t::on_access)>  accessHandler;
-    handler_t<decltype(&worker_t::on_release)> releaseHandler;
+    handler_pack_t<2> handlers;
 };
 
 // --- fixture ----------------------------------------------------------------

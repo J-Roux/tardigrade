@@ -19,7 +19,7 @@ struct actor_base_t : node<actor_base_t>
       : message_{},
         environment_{ environment },
         state_{ State::INITIALIZING },
-        stateHandler_{ this, &actor_base_t::on_state }
+        stateHandler_{on<&actor_base_t::on_state>() }
   {
     subscribe(&stateHandler_);
   }
@@ -59,6 +59,27 @@ protected:
   void send(message_base_t* msg) noexcept  { environment_.post(msg); }
   void subscribe(handler_ptr* h) noexcept  { environment_.subscribe(h); }
 
+  template<tartigrada::size_t N>
+  void subscribe(handler_pack_t<N>& pack) noexcept
+  {
+    for (auto& h : pack.items) subscribe(&h);
+  }
+
+  template<auto MemFn>
+  handler_t on() noexcept
+  {
+    return handler_t{ this, handler_t::trampoline<MemFn>() };
+  }
+
+  template<auto... MemFns>
+  handler_pack_t<sizeof...(MemFns)> pack() noexcept
+  {
+    handler_pack_t<sizeof...(MemFns)> p;
+    tartigrada::size_t i = 0;
+    ((p.items[i++] = handler_t{ this, handler_t::trampoline<MemFns>() }), ...);
+    return p;
+  }
+
   void retire() noexcept
   {
     message_.set_state(State::SHUT_DOWNING);
@@ -71,7 +92,8 @@ private:
   State           state_;
   actor_base_t*   supervisor_          = nullptr;
   bool            supervised_shutdown_ = false;
-  handler_t<decltype(&actor_base_t::on_state)> stateHandler_;
+
+  handler_t stateHandler_;
 };
 
 } // namespace tartigrada

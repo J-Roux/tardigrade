@@ -18,38 +18,44 @@ struct handler_ptr : public node<handler_ptr>
                     actor_base_t* addr) noexcept = 0;
 };
 
-template<class Handler>
 struct handler_t : handler_ptr
 {
+  using fn_t = void(*)(actor_base_t*, message_base_t*,
+                       tartigrada::size_t, actor_base_t*) noexcept;
+
   actor_base_t* actor;
-  Handler handler;
+  fn_t          fn;
 
-  handler_t(actor_base_t* actor, Handler&& handler_)
-      : actor{ actor }, handler{ handler_ } {}
-
+  handler_t() = default;
+  handler_t(actor_base_t* actor, fn_t fn) : actor{actor}, fn{fn} {}
 
   void call(message_base_t* data,
             tartigrada::size_t id,
             actor_base_t* addr) noexcept override
   {
-
-    if (id == final_message_t::type_id &&
-        ((addr == nullptr) || (addr == actor)))
-    {
-      auto* final_message = static_cast<final_message_t*>(data);
-      auto* final_obj     = static_cast<final_actor_t*>(actor);
-      (*final_obj.*handler)(final_message);
-      //std::invoke(handler, final_obj, final_message);
-    }
+    fn(actor, data, id, addr);
   }
 
+  template<auto MemFn>
+  static fn_t trampoline() noexcept { return &trampoline_impl<MemFn>; }
 
-  
 private:
-  using traits          = handler_traits<Handler>;
-  using final_message_t = typename traits::message_t;
-  using final_actor_t   = typename traits::actor_t;
+  template<auto MemFn>
+  static void trampoline_impl(actor_base_t* actor, message_base_t* data,
+                              tartigrada::size_t id, actor_base_t* addr) noexcept
+  {
+    using traits = handler_traits<decltype(MemFn)>;
+    using A = typename traits::actor_t;
+    using M = typename traits::message_t;
+    if (id == M::type_id && ((addr == nullptr) || (addr == actor)))
+      (static_cast<A*>(actor)->*MemFn)(static_cast<M*>(data));
+  }
+};
 
+template<tartigrada::size_t N>
+struct handler_pack_t
+{
+  handler_t items[N];
 };
 
 } // namespace tartigrada

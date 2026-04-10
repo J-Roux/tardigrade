@@ -12,7 +12,7 @@ struct pinger_t : actor_base_t
 
   pinger_t(environment_t& env)
       : actor_base_t{ env },
-        pingHandler{ this, &pinger_t::ping_handler }
+        pingHandler{on<&pinger_t::ping_handler>() }
   {
     subscribe(&pingHandler);
   }
@@ -20,7 +20,7 @@ struct pinger_t : actor_base_t
   void init() noexcept override { send(&pong); }
 
   void ping_handler(ping_t*) noexcept { send(&pong); }
-  handler_t<decltype(&pinger_t::ping_handler)> pingHandler;
+  handler_t pingHandler;
 };
 
 struct ponger_t : actor_base_t
@@ -30,13 +30,13 @@ struct ponger_t : actor_base_t
 
   ponger_t(environment_t& env)
       : actor_base_t{ env },
-        pongHandler{ this, &ponger_t::pong_handler }
+        pongHandler{on<&ponger_t::pong_handler>() }
   {
     subscribe(&pongHandler);
   }
 
   void pong_handler(pong_t*) noexcept { send(&ping); }
-  handler_t<decltype(&ponger_t::pong_handler)> pongHandler;
+  handler_t pongHandler;
 };
 
 

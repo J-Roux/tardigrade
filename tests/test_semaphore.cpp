@@ -26,12 +26,10 @@ struct worker_t : actor_base_t
     worker_t(environment_t& env, semaphore_t& s)
         : actor_base_t{ env },
           sem{ s },
-          permitHandler{ this, &worker_t::on_permit },
-          doneHandler  { this, &worker_t::on_done   }
+          handlers{ pack<&worker_t::on_permit, &worker_t::on_done>() }
     {
         permit_msg.bind(sem);
-        subscribe(&permitHandler);
-        subscribe(&doneHandler);
+        subscribe(handlers);
     }
 
     void init() noexcept override
@@ -50,8 +48,7 @@ struct worker_t : actor_base_t
 
     void on_done(done_t*) noexcept { sem.release(); }
 
-    handler_t<decltype(&worker_t::on_permit)> permitHandler;
-    handler_t<decltype(&worker_t::on_done)>   doneHandler;
+    handler_pack_t<2> handlers;
 };
 
 // --- fixture ----------------------------------------------------------------

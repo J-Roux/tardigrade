@@ -68,7 +68,7 @@ struct pinger_t : actor_base_t
         : actor_base_t{ env },
           delay{ d },
           pong{ d },
-          pingHandler{ this, &pinger_t::on_ping }
+          pingHandler{on<&pinger_t::on_ping>() }
     {
         subscribe(&pingHandler);
     }
@@ -89,7 +89,7 @@ struct pinger_t : actor_base_t
         send(&pong);
     }
 
-    handler_t<decltype(&pinger_t::on_ping)> pingHandler;
+    handler_t pingHandler;
 };
 
 struct ponger_t : actor_base_t
@@ -99,7 +99,7 @@ struct ponger_t : actor_base_t
 
     explicit ponger_t(environment_t& env)
         : actor_base_t{ env },
-          pongHandler{ this, &ponger_t::on_pong }
+          pongHandler{on<&ponger_t::on_pong>() }
     {
         subscribe(&pongHandler);
     }
@@ -111,7 +111,7 @@ struct ponger_t : actor_base_t
         send(&ping);
     }
 
-    handler_t<decltype(&ponger_t::on_pong)> pongHandler;
+    handler_t pongHandler;
 };
 
 // --- fixture ----------------------------------------------------------------

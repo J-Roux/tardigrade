@@ -29,8 +29,11 @@
 #include "avr_hal.hpp"
 
 // Embed MCU name and clock frequency in the ELF so simavr can auto-detect them.
-#include <avr/avr_mcu_section.h>
-AVR_MCU(F_CPU, "atmega328p");
+#if __has_include(<avr/avr_mcu_section.h>)
+#  include <avr/avr_mcu_section.h>
+   AVR_MCU(F_CPU, "atmega328p");
+#endif
+
 
 using namespace tartigrada;
 
@@ -87,7 +90,7 @@ struct reporter_t : actor_base_t
 
     explicit reporter_t(environment_t& env)
         : actor_base_t{ env },
-          reportHandler{ this, &reporter_t::on_report }
+          reportHandler{on<&reporter_t::on_report>() }
     {
         report_msg.bind(report_sem);
         report_msg.set_address(this);
@@ -115,7 +118,7 @@ private:
         retire();
     }
 
-    handler_t<decltype(&reporter_t::on_report)> reportHandler;
+    handler_t reportHandler;
 };
 
 // Reads A0-A3; stores in reporter and releases the report semaphore.
@@ -159,7 +162,7 @@ struct watchdog_t : supervisor_t
 
     explicit watchdog_t(environment_t& env)
         : supervisor_t{ env, ShutdownPolicy::CASCADE },
-          sleepHandler{ this, &watchdog_t::do_sleep }
+          sleepHandler{on<&watchdog_t::do_sleep>() }
     {
         sleep_msg.set_address(this);
         subscribe(&sleepHandler);
@@ -167,7 +170,7 @@ struct watchdog_t : supervisor_t
 
     void init() noexcept override
     {
-        // Interrupts already disabled by avr_cs_t in run<avr_cs_t>().
+        avr_cs_t cs;
         wdt_init_interrupt_8s();
     }
 
@@ -187,7 +190,7 @@ private:
     }
 
     sleep_t  sleep_msg;
-    handler_t<decltype(&watchdog_t::do_sleep)> sleepHandler;
+    handler_t sleepHandler;
 };
 
 // ---------------------------------------------------------------------------
@@ -195,14 +198,14 @@ private:
 // ---------------------------------------------------------------------------
 
 environment_t    env;
-state_message_t  boot{};
+
 
 reporter_t       reporter  { env };
 analog_reader_t  analog_rd { env, reporter };
 digital_reader_t digital_rd{ env, reporter };
 power_manager_t  power_mgr { env };
 watchdog_t       watchdog  { env };   // extends supervisor_t; constructed last
-
+state_message_t  boot{&watchdog, State::INITIALIZING};
 // ---------------------------------------------------------------------------
 // WDT ISR — re-arm interrupt mode, then post boot to start the actor cycle
 // ---------------------------------------------------------------------------
@@ -210,8 +213,6 @@ watchdog_t       watchdog  { env };   // extends supervisor_t; constructed last
 ISR(WDT_vect)
 {
     wdt_rearm_interrupt();
-    boot.set_state(State::INITIALIZING);
-    boot.set_address(&watchdog);
     env.post(&boot);
 }
 
@@ -229,11 +230,6 @@ int main()
     watchdog.add(&digital_rd);
     watchdog.add(&analog_rd);
     watchdog.add(&reporter);
-
-    // First cycle: WDT not yet configured, so post boot manually.
-    // All subsequent cycles are triggered by the WDT ISR.
-    boot.set_state(State::INITIALIZING);
-    boot.set_address(&watchdog);
     env.post(&boot);
 
     while(true)

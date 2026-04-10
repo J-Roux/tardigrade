@@ -22,7 +22,12 @@ public:
   constexpr void set_address(actor_base_t* addr)               noexcept { address_ = addr; }
 
   message_base_t() = default;
-  message_base_t(actor_base_t* address) : address_{address} {}
+  explicit message_base_t(actor_base_t* address) : address_{address} {}
+  message_base_t(message_base_t&&) = default;
+  message_base_t& operator=(message_base_t&&) = default;
+  message_base_t(const message_base_t&)= delete;
+  message_base_t& operator=(const message_base_t&) = delete;
+  
 private:
   actor_base_t* address_ = broadcast;
 };
@@ -31,6 +36,7 @@ template<typename Derived>
 class message_t : public message_base_t
 {
 public:
+  using message_base_t::message_base_t;
   static constexpr tartigrada::size_t type_id = tartigrada::type_id<Derived>();
   [[nodiscard]] tartigrada::size_t get_id() const noexcept override { return type_id; }
 };
@@ -38,12 +44,12 @@ public:
 class state_message_t : public message_t<state_message_t>
 {
 public:
-  [[nodiscard]] constexpr State get_state() const noexcept { return state_; }
-  constexpr void                set_state(State s) noexcept { state_ = s; }
+  using message_t<state_message_t>::message_t;
+  explicit state_message_t(State state) : state_{state} {}
+  state_message_t(actor_base_t* address, State state) : message_t{address}, state_{state} {}
 
-  state_message_t() = default;
-  state_message_t(State state) : state_{state} {}
-  
+  [[nodiscard]] constexpr State get_state() const noexcept { return state_; }
+  constexpr void                set_state(State s) noexcept { state_ = s; }  
 private:
   State state_ = State::UNINITIALIZED;
 };
