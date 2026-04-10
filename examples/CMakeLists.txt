@@ -51,7 +51,7 @@ endif()
 
 # sim_<name> — host targets that run an AVR ELF through sim_runner.
 # Requires: sim_runner built (host tree) + AVR ELF built (build-avr/ tree).
-if(NOT CMAKE_CROSSCOMPILING)
+if(NOT CMAKE_CROSSCOMPILING AND TARTIGRADA_WITH_SIMAVR)
   set(_avr_build_dir "${CMAKE_SOURCE_DIR}/build-avr/examples")
 
   # add_sim_target(name [SIM_USEC <usec>] [MCU <mcu>] [FREQ <hz>])

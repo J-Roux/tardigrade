@@ -9,6 +9,7 @@ template<class Node>
 class queue
 {
   Node* head = nullptr;
+  Node* tail = nullptr;
   tartigrada::size_t size = 0;
 
 public:
@@ -19,19 +20,18 @@ public:
 
   void push_back(Node* n) noexcept
   {
-    auto** temp = &head;
-    for (tartigrada::size_t i = 0; i < size; i++)
-    {
-      temp = &((*temp)->ptr);
-    }
-    *temp = n;
-    size++;
+    n->ptr = nullptr;
+    if (tail) tail->ptr = n;
+    else      head      = n;
+    tail = n;
+    ++size;
   }
 
   void pop_front() noexcept
   {
     head = head->ptr;
-    size--;
+    if (!head) tail = nullptr;
+    --size;
   }
 
   [[nodiscard]] constexpr tartigrada::size_t length() const noexcept

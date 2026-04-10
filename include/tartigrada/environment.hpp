@@ -38,12 +38,16 @@ public:
     for (tartigrada::size_t i = 0; i < pending; ++i)
     {
       message_base_t* msg;
-      { CS cs; msg = messageQueue.front(); messageQueue.pop_front(); }
+      { 
+        CS cs; 
+        msg = messageQueue.front(); 
+        messageQueue.pop_front(); 
 
-      if (!msg->is_ready())
-      {
-        CS cs; messageQueue.push_back(msg); // move to back, try next
-        continue;
+        if (!msg->is_ready())
+        {
+          messageQueue.push_back(msg); // move to back, try next
+          continue;
+        }
       }
       const auto  id   = msg->get_id();
       auto* const addr = msg->get_address();

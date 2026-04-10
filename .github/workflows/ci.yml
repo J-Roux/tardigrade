@@ -46,8 +46,17 @@ jobs:
           key: conan-${{ matrix.os }}-${{ matrix.compiler }}-${{ matrix.build_type }}-${{ hashFiles('conanfile.py') }}
           restore-keys: conan-${{ matrix.os }}-${{ matrix.compiler }}-${{ matrix.build_type }}-
 
+      - name: Conan install
+        run: conan install . -s build_type=${{ matrix.build_type }} --build=missing
+        env:
+          CC:  ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+
       - name: Build and test
-        run: conan build . -s build_type=${{ matrix.build_type }} --build=missing
+        run: |
+          cmake --preset conan-${{ matrix.build_type == 'Release' && 'release' || 'debug' }}
+          cmake --build build/${{ matrix.build_type }}
+          ctest --test-dir build/${{ matrix.build_type }} --output-on-failure
         env:
           CC:  ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
@@ -74,3 +83,39 @@ jobs:
 
       - name: Print size
         run: avr-size --format=avr --mcu=atmega328p build-avr/examples/ping_pong_bare
+
+  simulate:
+    name: AVR simulation (simavr)
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    needs: avr
+
+    steps:
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm git cmake make avr-gcc avr-libc simavr python python-pip libelf
+
+      - uses: actions/checkout@v4
+
+      - name: Install Conan
+        run: pip install conan --break-system-packages
+
+      - name: Detect Conan profile
+        run: conan profile detect --force
+
+      - name: Conan install (with simavr)
+        run: conan install . --build=missing -s build_type=Release -o with_simavr=True
+          -c tools.system.package_manager:mode=check
+
+      - name: Build host (sim_runner)
+        run: |
+          cmake --preset conan-release
+          cmake --build build/Release
+
+      - name: Configure AVR
+        run: cmake -B build-avr -DCMAKE_TOOLCHAIN_FILE=cmake/avr-toolchain.cmake
+
+      - name: Build AVR firmware
+        run: cmake --build build-avr --target arduino_watchdog
+
+      - name: Simulate
+        run: cmake --build build/Release --target sim_arduino_watchdog

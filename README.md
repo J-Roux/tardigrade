@@ -1,30 +1,45 @@
 # tartigrada
 
 A lightweight, header-only actor model framework for C++17.  
-Targets bare-metal embedded systems (AVR, ARM Cortex-M) as well as hosted environments.  
-Zero heap allocation, zero exceptions, zero RTTI.
+Designed for bare-metal embedded systems (AVR, ARM Cortex-M) and hosted environments alike.  
+Zero heap allocation. Zero exceptions. Zero RTTI.
 
 ## Features
 
-- **Header-only** — drop `include/tartigrada/` into your project
-- **No dynamic allocation** — all actors, messages, and handlers are statically allocated
-- **Typed messages** — each message type carries its own compile-time ID (FNV-1a hash); no `dynamic_cast`
-- **Semaphore-gated messages** — defer dispatch until a resource count is satisfied
-- **Supervisor / cascade shutdown** — one actor retiring triggers an ordered shutdown of all children
-- **ISR-safe** — queue accesses guarded by a user-supplied RAII critical section type
-- **Portable** — compiles on AVR (`avr-g++`), Cortex-M, and x86/x64 host with the same source
+- **Header-only** — drop `include/tartigrada/` into your project, done
+- **No dynamic allocation** — actors, messages, handlers, and queues are all statically allocated using intrusive linked lists
+- **Typed messages** — each message type gets a compile-time ID (FNV-1a hash of `__PRETTY_FUNCTION__`); no `dynamic_cast`
+- **Deferred dispatch** — override `is_ready()` on any message to hold it in the queue until a condition is met (semaphore, mutex, timer, ...)
+- **Semaphore-gated messages** — `semaphore_message_t` dispatches only when a `semaphore_t` count is non-zero
+- **Mutex-gated messages** — `mutex_message_t` dispatches only when a `mutex_t` is free
+- **Supervisor / cascade shutdown** — one actor calling `retire()` triggers an ordered shutdown of all siblings
+- **ISR-safe** — queue operations are guarded by a user-supplied RAII critical section type
+- **Portable** — same source compiles on AVR (`avr-g++`), Cortex-M, and x86/x64
 
 ## Concepts
 
-| Concept | Type | Description |
-|---|---|---|
-| Message | `message_t<Derived>` | Typed, statically allocated message |
-| Semaphore message | `semaphore_message_t<Derived>` | Dispatched only when a semaphore count > 0 |
-| Handler | `handler_t<&Actor::method>` | Binds a member function to a message type |
-| Actor | `actor_base_t` | Lifecycle: `init()` → operational → `shutdown()` |
-| Supervisor | `supervisor_t` | Manages a list of child actors; CASCADE policy retires all on first child exit |
-| Environment | `environment_t` | Message queue + handler registry; owns one event loop |
-| Critical section | user-supplied RAII type | Passed as template arg to `run<CS>()`/`step<CS>()` |
+| Type | Role |
+|---|---|
+| `message_t<Derived>` | Typed, statically allocated message; `get_id()` returns a compile-time FNV-1a hash |
+| `semaphore_message_t<Derived>` | Message that stays in the queue until `semaphore_t::count() > 0` |
+| `mutex_message_t<Derived>` | Message that stays in the queue until a `mutex_t` is free |
+| `handler_t<&Actor::method>` | Binds a `void (Actor::*)(Msg*) noexcept` member function to a message type |
+| `actor_base_t` | Base class for actors; overridable `init()` and `shutdown()` hooks |
+| `supervisor_t` | Manages a list of child actors; drives the `CASCADE` or `REBOOT` policy |
+| `environment_t` | Owns the message queue and handler registry; runs the dispatch loop |
+| Critical section | User-supplied RAII type passed as `run<CS>()`; default is a no-op |
+
+## Lifecycle
+
+```
+INITIALIZING → OPERATIONAL → SHUT_DOWNING → UNINITIALIZED
+```
+
+When a supervisor receives `INITIALIZING`, it first initialises all children (in add order), then calls its own `init()`. When a child calls `retire()`, or when the supervisor receives `SHUT_DOWNING`, children are shut down in the same add order and then the supervisor calls its own `shutdown()`.
+
+**CASCADE policy** — any child retiring immediately triggers a cascade: all other children are sent `SHUT_DOWNING`, then the supervisor shuts itself down.
+
+**REBOOT policy** — a child that retires is re-initialised individually; siblings are unaffected.
 
 ## Quick start
 
@@ -54,13 +69,13 @@ struct ponger_t : actor_base_t {
     handler_t<decltype(&ponger_t::on_pong)> h;
 };
 
-int main() {
-    environment_t env;
-    state_message_t boot{};
-    supervisor_t    super{env};
-    pinger_t        ping{env};
-    ponger_t        pong{env};
+environment_t   env;
+state_message_t boot{};
+supervisor_t    super{env};
+pinger_t        ping{env};
+ponger_t        pong{env};
 
+int main() {
     super.add(&ping);
     super.add(&pong);
 
@@ -68,14 +83,14 @@ int main() {
     boot.set_address(&super);
     env.post(&boot);
 
-    super.run();   // on Arduino: call super.step() from loop()
+    super.run();          // blocks until queue drains
+    // on Arduino: call super.step() from loop() instead
 }
 ```
 
-## ISR-safe dispatch (AVR example)
+## ISR-safe dispatch
 
-Provide a RAII critical section so the ISR can safely post into the queue
-while the event loop is running:
+Supply a RAII critical section so ISRs can safely call `post()` while the event loop runs:
 
 ```cpp
 struct avr_cs_t {
@@ -84,77 +99,112 @@ struct avr_cs_t {
     ~avr_cs_t() noexcept { SREG = sreg_; }
 };
 
-// In main:
+// main loop:
 supervisor.run<avr_cs_t>();
 
-// In an ISR:
-env.post(&some_message);   // safe — dispatch() holds avr_cs_t around queue ops
+// ISR:
+ISR(WDT_vect) {
+    env.post(&some_message);   // safe — dispatch() holds avr_cs_t around queue access
+}
 ```
 
-## Semaphore-gated messages
+`dispatch()` acquires the critical section only around `front()`/`pop_front()`/`push_back()` calls, not around the handler call itself. On AVR, handler bodies therefore run with interrupts **disabled** — this is intentional and lets handlers manipulate hardware registers atomically without extra `cli()`/`sei()` pairs.
 
-Use `semaphore_message_t` to hold a message in the queue until all
-prerequisites have been met:
+## Deferred messages
+
+Any message can override `is_ready()` to defer its own dispatch:
+
+```cpp
+// Time-delayed message (works with any Clock satisfying std Clock concept):
+struct delayed_t : message_t<delayed_t> {
+    std::chrono::steady_clock::time_point fire_at;
+    bool is_ready() noexcept override {
+        return std::chrono::steady_clock::now() >= fire_at;
+    }
+};
+```
+
+`dispatch()` scans the queue up to its current length each call; messages that return `false` from `is_ready()` are moved to the back and retried next call.
+
+### Semaphore-gated messages
 
 ```cpp
 struct report_t : semaphore_message_t<report_t> {};
 
 semaphore_t sem{0};
 report_t    msg;
-msg.bind(sem);          // msg dispatches only when sem.count() > 0
+msg.bind(sem);
 
-// From two independent actors:
-sem.release();          // first actor done
-sem.release();          // second actor done → msg now dispatches
+// from two independent actors:
+sem.release();   // first  actor signals
+sem.release();   // second actor signals → msg.is_ready() now true, dispatch fires
 ```
 
-## Shutdown and CASCADE policy
-
-When a child actor calls `retire()`, the supervisor (if using
-`ShutdownPolicy::CASCADE`) sends a `SHUT_DOWNING` message to every other
-child, then calls its own `shutdown()`.  Ordering is deterministic:
-children are shut down in reverse-add order.
+### Mutex-gated messages
 
 ```cpp
-supervisor_t super{env, ShutdownPolicy::CASCADE};
-super.add(&child_a);   // shuts down second
-super.add(&child_b);   // shuts down first (push_front reversal)
+struct write_t : mutex_message_t<write_t> {};
+
+mutex_t  bus_lock;
+write_t  msg;
+msg.bind(bus_lock);
+
+bus_lock.lock();       // acquire before sending
+send(&msg);            // queued; dispatches once bus_lock.unlock() is called
+```
+
+## Broadcast
+
+Setting an address of `nullptr` delivers a message to every handler that accepts its type:
+
+```cpp
+msg.set_address(tartigrada::broadcast);  // nullptr
+env.post(&msg);
 ```
 
 ## Building
 
-### Host (tests + simulator)
+### Host (tests + sim runner)
 
 Requires [Conan 2](https://conan.io/) and CMake ≥ 3.16.
 
 ```bash
-conan install . --output-folder=build/Release --build=missing -s build_type=Release
-cmake -B build/Release -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_TOOLCHAIN_FILE=build/Release/generators/conan_toolchain.cmake
+conan install . --build=missing -s build_type=Release
+cmake --preset conan-release
 cmake --build build/Release
 ctest --test-dir build/Release
 ```
 
+### Host with simavr support
+
+Installs `simavr` via the system package manager (`pacman`/`apk`) and builds `sim_runner`:
+
+```bash
+conan install . --build=missing -s build_type=Release -o with_simavr=True \
+    -c tools.system.package_manager:mode=install \
+    -c tools.system.package_manager:sudo=True
+cmake --preset conan-release
+cmake --build build/Release
+```
+
 ### AVR firmware
 
-Requires `avr-g++` (AVR-GCC).
+Requires `avr-g++` (AVR-GCC toolchain).
 
 ```bash
 cmake -B build-avr -DCMAKE_TOOLCHAIN_FILE=cmake/avr-toolchain.cmake
 cmake --build build-avr --target arduino_watchdog
 ```
 
-### Simulate AVR firmware (simavr)
+### Simulate AVR firmware
 
-Build the host tree first (provides `sim_runner`), then:
+Build both the host tree (provides `sim_runner`) and the AVR tree first, then:
 
 ```bash
 cmake --build build/Release --target sim_arduino_watchdog
 ```
 
-This runs `arduino_watchdog.elf` through `sim_runner` with 30 s of simulated
-AVR time.  Sleep cycles are fast-forwarded so it completes in milliseconds.
-UART output is printed to stdout with simulated timestamps:
+`sim_runner` fast-forwards sleep cycles so 30 s of simulated AVR time completes in milliseconds. UART output is printed to stdout with simulated timestamps:
 
 ```
 [    37 ms] A0-A3: 0,0,0,0  D2-D7: 0b111111
@@ -167,9 +217,9 @@ UART output is printed to stdout with simulated timestamps:
 
 | File | Description |
 |---|---|
-| `examples/ping_pong_bare.cpp` | Minimal ping-pong between two actors (no threads, no OS) |
-| `examples/ping_pong.cpp` | Ping-pong with a dedicated thread per actor (hosted) |
-| `examples/arduino_watchdog.cpp` | ATmega328P periodic sensor read with WDT power-down sleep |
+| `examples/ping_pong_bare.cpp` | Minimal ping-pong, compiles on both host and AVR |
+| `examples/ping_pong.cpp` | Ping-pong with a dedicated `std::thread` per actor (hosted) |
+| `examples/arduino_watchdog.cpp` | ATmega328P periodic sensor read with WDT power-down sleep and simavr support |
 
 ## License
 
