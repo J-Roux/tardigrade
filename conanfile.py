@@ -32,7 +32,7 @@ class TartigradaConan(ConanFile):
             src = os.path.join(prefix, "src")
             if not os.path.exists(os.path.join(prefix, "include", "simavr", "sim_avr.h")):
                 self.run(f"git clone --depth=1 https://github.com/buserror/simavr.git {src}")
-                self.run(f"make -C {src} install RELEASE=1 DESTDIR={prefix} PREFIX={prefix}")
+                self.run(f"make -C {src}/simavr install RELEASE=1 DESTDIR={prefix} PREFIX={prefix}")
 
     def layout(self):
         cmake_layout(self)
