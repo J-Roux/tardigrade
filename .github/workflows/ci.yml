@@ -92,7 +92,7 @@ jobs:
 
     steps:
       - name: Install dependencies
-        run: pacman -Syu --noconfirm git cmake make gcc avr-gcc avr-libc python python-pip libelf
+        run: pacman -Syu --noconfirm git cmake make gcc which avr-gcc avr-libc python python-pip libelf
 
       - uses: actions/checkout@v4
 
@@ -103,7 +103,7 @@ jobs:
         run: conan profile detect --force
 
       - name: Build host (sim_runner)
-        run: conan build . --build=missing -s build_type=Release -o with_simavr=True
+        run: conan build . --build=missing -s build_type=Release -o &:with_simavr=True
 
       - name: Build AVR firmware
         run: |
