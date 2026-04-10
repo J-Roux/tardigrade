@@ -43,13 +43,9 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "avr")
     )
   endfunction()
 
-  if(TARTIGRADA_WITH_SIMAVR)
-    target_compile_options(ping_pong_bare PRIVATE -I/usr/include/simavr)
-  endif()
-
   add_avr_firmware(arduino_watchdog arduino_watchdog.cpp)
   if(TARTIGRADA_WITH_SIMAVR)
-    target_compile_options(arduino_watchdog PRIVATE -I/usr/include/simavr)
+    target_compile_options(arduino_watchdog PRIVATE -I${SIMAVR_INSTALL_PREFIX}/include)
   endif()
 endif()
 

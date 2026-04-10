@@ -92,7 +92,7 @@ jobs:
 
     steps:
       - name: Install dependencies
-        run: pacman -Syu --noconfirm git cmake make avr-gcc avr-libc simavr python python-pip libelf
+        run: pacman -Syu --noconfirm git cmake make avr-gcc avr-libc python python-pip libelf
 
       - uses: actions/checkout@v4
 
@@ -102,20 +102,15 @@ jobs:
       - name: Detect Conan profile
         run: conan profile detect --force
 
-      - name: Conan install (with simavr)
-        run: conan install . --build=missing -s build_type=Release -o with_simavr=True
-          -c tools.system.package_manager:mode=check
-
       - name: Build host (sim_runner)
-        run: |
-          cmake --preset conan-release
-          cmake --build build/Release
-
-      - name: Configure AVR
-        run: cmake -B build-avr -DCMAKE_TOOLCHAIN_FILE=cmake/avr-toolchain.cmake
+        run: conan build . --build=missing -s build_type=Release -o with_simavr=True
 
       - name: Build AVR firmware
-        run: cmake --build build-avr --target arduino_watchdog
+        run: |
+          cmake -B build-avr -DCMAKE_TOOLCHAIN_FILE=cmake/avr-toolchain.cmake \
+            -DTARTIGRADA_WITH_SIMAVR=ON \
+            -DSIMAVR_INSTALL_PREFIX=$PWD/build/simavr
+          cmake --build build-avr --target arduino_watchdog
 
       - name: Simulate
         run: cmake --build build/Release --target sim_arduino_watchdog

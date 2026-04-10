@@ -1,7 +1,6 @@
 from conan import ConanFile
 from conan.tools.cmake import CMake, cmake_layout, CMakeToolchain
 from conan.tools.files import copy
-from conan.tools.system.package_manager import Apk, PacMan
 import os
 
 
@@ -23,18 +22,26 @@ class TartigradaConan(ConanFile):
     def build_requirements(self):
         self.test_requires("catch2/3.7.1")
 
+    @property
+    def _simavr_prefix(self):
+        return os.path.join(self.recipe_folder, "build", "simavr")
+
     def system_requirements(self):
         if self.options.with_simavr:
-            Apk(self).install(["simavr-dev"])
-            PacMan(self).install(["simavr"])
+            prefix = self._simavr_prefix
+            src = os.path.join(prefix, "src")
+            if not os.path.exists(os.path.join(prefix, "include", "simavr", "sim_avr.h")):
+                self.run(f"git clone --depth=1 https://github.com/buserror/simavr.git {src}")
+                self.run(f"make -C {src} install RELEASE=1 DESTDIR={prefix} PREFIX={prefix}")
 
     def layout(self):
         cmake_layout(self)
 
     def generate(self):
-      
         tc = CMakeToolchain(self)
         tc.variables["TARTIGRADA_WITH_SIMAVR"] = self.options.with_simavr
+        if self.options.with_simavr:
+            tc.variables["SIMAVR_INSTALL_PREFIX"] = self._simavr_prefix
         tc.generate()
 
     def build(self):

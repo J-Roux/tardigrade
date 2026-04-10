@@ -23,7 +23,8 @@ Zero heap allocation. Zero exceptions. Zero RTTI.
 | `message_t<Derived>` | Typed, statically allocated message; `get_id()` returns a compile-time FNV-1a hash |
 | `semaphore_message_t<Derived>` | Message that stays in the queue until `semaphore_t::count() > 0` |
 | `mutex_message_t<Derived>` | Message that stays in the queue until a `mutex_t` is free |
-| `handler_t<&Actor::method>` | Binds a `void (Actor::*)(Msg*) noexcept` member function to a message type |
+| `handler_t` | Type-erased handler; bind a single member function via `on<&Actor::method>()` |
+| `handler_pack_t<N>` | Inline array of N type-erased handlers; bind multiple via `pack<&Actor::f, &Actor::g>()` |
 | `actor_base_t` | Base class for actors; overridable `init()` and `shutdown()` hooks |
 | `supervisor_t` | Manages a list of child actors; drives the `CASCADE` or `REBOOT` policy |
 | `environment_t` | Owns the message queue and handler registry; runs the dispatch loop |
@@ -51,22 +52,24 @@ struct ping_t : message_t<ping_t> {};
 struct pong_t : message_t<pong_t> {};
 
 struct pinger_t : actor_base_t {
-    pong_t pong;
-    pinger_t(environment_t& env)
-        : actor_base_t{env}, h{this, &pinger_t::on_ping} { subscribe(&h); }
+    pong_t    pong;
+    handler_t h;
 
-    void init() noexcept override { send(&pong); }
+    pinger_t(environment_t& env)
+        : actor_base_t{env}, h{on<&pinger_t::on_ping>()} { subscribe(&h); }
+
+    void init() noexcept override  { send(&pong); }
     void on_ping(ping_t*) noexcept { send(&pong); }
-    handler_t<decltype(&pinger_t::on_ping)> h;
 };
 
 struct ponger_t : actor_base_t {
-    ping_t ping;
+    ping_t    ping;
+    handler_t h;
+
     ponger_t(environment_t& env)
-        : actor_base_t{env}, h{this, &ponger_t::on_pong} { subscribe(&h); }
+        : actor_base_t{env}, h{on<&ponger_t::on_pong>()} { subscribe(&h); }
 
     void on_pong(pong_t*) noexcept { send(&ping); }
-    handler_t<decltype(&ponger_t::on_pong)> h;
 };
 
 environment_t   env;
@@ -177,14 +180,10 @@ ctest --test-dir build/Release
 
 ### Host with simavr support
 
-Installs `simavr` via the system package manager (`pacman`/`apk`) and builds `sim_runner`:
+The `with_simavr=True` option builds and installs simavr from source automatically if not already present.
 
 ```bash
-conan install . --build=missing -s build_type=Release -o with_simavr=True \
-    -c tools.system.package_manager:mode=install \
-    -c tools.system.package_manager:sudo=True
-cmake --preset conan-release
-cmake --build build/Release
+conan build . --build=missing -s build_type=Release -o with_simavr=True
 ```
 
 ### AVR firmware
@@ -198,9 +197,18 @@ cmake --build build-avr --target arduino_watchdog
 
 ### Simulate AVR firmware
 
-Build both the host tree (provides `sim_runner`) and the AVR tree first, then:
+Build the host tree, then the AVR firmware, then run the simulation:
 
 ```bash
+# 1. Build host (sim_runner + simavr)
+conan build . --build=missing -s build_type=Release -o with_simavr=True
+
+# 2. Build AVR firmware
+cmake -B build-avr -DCMAKE_TOOLCHAIN_FILE=cmake/avr-toolchain.cmake \
+    -DTARTIGRADA_WITH_SIMAVR=ON -DSIMAVR_INSTALL_PREFIX=$PWD/build/simavr
+cmake --build build-avr --target arduino_watchdog
+
+# 3. Simulate
 cmake --build build/Release --target sim_arduino_watchdog
 ```
 
